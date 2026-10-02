@@ -1,0 +1,69 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_call: {}
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          package_json_file: web/package.json
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - run: pnpm install --frozen-lockfile && pnpm lint && pnpm check && pnpm build
+        working-directory: web
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy, rustfmt
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fmt --check && cargo clippy --all-targets -- -D warnings && cargo test
+      - name: Generated TypeScript types are committed and current
+        run: git diff --exit-code web/src/lib/api/types
+
+  # The whole app against a real mail server: docker-mailserver + Postgres from dev/,
+  # the API integration tests, then the browser walkthroughs in system Chrome.
+  e2e:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Start mail server + Postgres
+        run: dev/up.sh
+      - uses: pnpm/action-setup@v4
+        with:
+          package_json_file: web/package.json
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - run: pnpm install --frozen-lockfile && pnpm build
+        working-directory: web
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo build --tests --bins
+      - name: API integration tests
+        run: source dev/dev.env && WEBMAIL_IT=1 cargo test --test integration
+      - name: Start the server
+        run: |
+          source dev/dev.env
+          nohup target/debug/webmail > server.log 2>&1 &
+          for i in $(seq 1 60); do curl -sf localhost:8080/api/health && exit 0; sleep 1; done
+          cat server.log; exit 1
+      - name: Browser walkthroughs
+        run: source dev/dev.env && e2e/run.sh
+      - name: Screenshots and server log on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-failure
+          path: |
+            e2e/shots/
+            server.log

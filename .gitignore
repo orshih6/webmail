@@ -1,0 +1,11 @@
+/target
+web/node_modules
+web/build
+web/.svelte-kit
+.env
+
+dev/tls
+dev/mail-config
+
+e2e/node_modules
+e2e/shots

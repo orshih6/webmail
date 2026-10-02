@@ -1,0 +1,36 @@
+# Webmail + Postgres. Point IMAP_HOST / SMTP_HOST at your mail server (implicit TLS:
+# IMAPS 993, SMTPS 465), then:
+#   docker compose -f deploy/docker-compose.yml up -d
+# and put an HTTPS reverse proxy in front of port 8080 (session cookies are Secure).
+name: webmail
+services:
+  webmail:
+    image: ghcr.io/orshih6/webmail:latest
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgres://webmail:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}@postgres:5432/webmail
+      IMAP_HOST: ${IMAP_HOST:?set IMAP_HOST, e.g. mail.example.com}
+      SMTP_HOST: ${SMTP_HOST:-${IMAP_HOST}}
+      APP_NAME: ${APP_NAME:-Webmail}
+      # Only for trying it out over plain http://localhost — never in production:
+      # COOKIE_SECURE: "0"
+    ports:
+      - "8080:8080"
+  postgres:
+    image: postgres:17
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: webmail
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}
+      POSTGRES_DB: webmail
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U webmail"]
+      interval: 5s
+      retries: 20
+volumes:
+  pgdata: {}

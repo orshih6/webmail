@@ -1,0 +1,103 @@
+# Example Kubernetes deployment. Replace every CHANGE_ME, then:
+#   kubectl create namespace webmail
+#   kubectl -n webmail create secret generic webmail-secret \
+#     --from-literal=DATABASE_URL='postgres://USER:PASSWORD@HOST:5432/webmail'
+#   kubectl apply -f deploy/kubernetes/webmail.yaml
+#
+# Stateless apart from Postgres. Keep replicas at 1: IMAP connections are pooled in
+# process memory (a restart only reconnects; sessions live in Postgres).
+apiVersion: v1
+kind: Service
+metadata:
+  name: webmail
+  namespace: webmail
+spec:
+  selector:
+    app: webmail
+  ports:
+    - name: http
+      port: 80
+      targetPort: http
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: webmail
+  namespace: webmail
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: webmail
+  template:
+    metadata:
+      labels:
+        app: webmail
+    spec:
+      containers:
+        - name: webmail
+          image: ghcr.io/orshih6/webmail:latest # pin a version in production
+          ports:
+            - containerPort: 8080
+              name: http
+          env:
+            - name: IMAP_HOST
+              value: CHANGE_ME.example.com
+            - name: SMTP_HOST
+              value: CHANGE_ME.example.com
+            - name: APP_NAME
+              value: Webmail
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: webmail-secret
+                  key: DATABASE_URL
+          readinessProbe:
+            httpGet:
+              path: /api/health
+              port: http
+          livenessProbe:
+            httpGet:
+              path: /api/health
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 20
+          securityContext:
+            runAsNonRoot: true
+            readOnlyRootFilesystem: true
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+          resources:
+            requests:
+              cpu: 20m
+              memory: 32Mi
+            limits:
+              memory: 256Mi
+---
+# Any Ingress controller works; long timeouts matter for attachments and the live-update
+# stream (it reconnects by itself if cut). This example is for ingress-nginx.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: webmail
+  namespace: webmail
+  annotations:
+    nginx.ingress.kubernetes.io/proxy-body-size: 30m
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "300"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "300"
+spec:
+  tls:
+    - hosts: [CHANGE_ME.example.com]
+      secretName: webmail-tls
+  rules:
+    - host: CHANGE_ME.example.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: webmail
+                port:
+                  name: http

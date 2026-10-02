@@ -1,0 +1,191 @@
+:root {
+	--bg: #ffffff;
+	--bg-soft: #f6f7f9;
+	--bg-hover: #eef0f4;
+	--bg-active: #e3e8f7;
+	--border: #e3e6eb;
+	--text: #1d2129;
+	--text-soft: #4a5160;
+	--text-faint: #5f6775; /* ≥4.5:1 on every light background */
+	--accent: #3b5bdb;
+	--accent-soft: #e7ecfd;
+	--accent-text: #ffffff;
+	--danger: #c92a2a;
+	--star: #e8a400;
+	--shadow: 0 8px 28px rgb(15 20 30 / 0.14);
+	--radius: 8px;
+	--font: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+	--mono: ui-monospace, "SF Mono", Menlo, monospace;
+	color-scheme: light;
+}
+
+/* Dark tokens apply when the OS is dark unless the user chose light, or when they chose dark. */
+@media (prefers-color-scheme: dark) {
+	:root:not([data-theme="light"]) {
+		--bg: #16181d;
+		--bg-soft: #1c1f25;
+		--bg-hover: #252931;
+		--bg-active: #2a3350;
+		--border: #2c3039;
+		--text: #e6e8ec;
+		--text-soft: #a5acb9;
+		--text-faint: #969eac; /* ≥4.5:1 on every dark background */
+		--accent: #8099f9;
+		--accent-soft: #263055;
+		--accent-text: #0f1220;
+		--danger: #ff6b6b;
+		--star: #f5c04a;
+		--shadow: 0 8px 28px rgb(0 0 0 / 0.5);
+		color-scheme: dark;
+	}
+}
+
+:root[data-theme="dark"] {
+	--bg: #16181d;
+	--bg-soft: #1c1f25;
+	--bg-hover: #252931;
+	--bg-active: #2a3350;
+	--border: #2c3039;
+	--text: #e6e8ec;
+	--text-soft: #a5acb9;
+	--text-faint: #969eac; /* ≥4.5:1 on every dark background */
+	--accent: #8099f9;
+	--accent-soft: #263055;
+	--accent-text: #0f1220;
+	--danger: #ff6b6b;
+	--star: #f5c04a;
+	--shadow: 0 8px 28px rgb(0 0 0 / 0.5);
+	color-scheme: dark;
+}
+
+:root[data-theme="light"] {
+	color-scheme: light;
+}
+
+*,
+*::before,
+*::after {
+	box-sizing: border-box;
+}
+
+html,
+body {
+	margin: 0;
+	height: 100%;
+	overflow-x: hidden;
+	background: var(--bg);
+	color: var(--text);
+	font: 14px / 1.45 var(--font);
+	-webkit-font-smoothing: antialiased;
+}
+
+button,
+input,
+textarea,
+select {
+	font: inherit;
+	color: inherit;
+}
+
+button {
+	cursor: pointer;
+}
+
+a {
+	color: var(--accent);
+}
+
+:focus-visible {
+	outline: 2px solid var(--accent);
+	outline-offset: 1px;
+}
+
+.btn {
+	display: inline-flex;
+	align-items: center;
+	gap: 6px;
+	height: 32px;
+	padding: 0 12px;
+	border: 1px solid var(--border);
+	border-radius: var(--radius);
+	background: var(--bg);
+	white-space: nowrap;
+}
+
+.btn:hover:not(:disabled) {
+	background: var(--bg-hover);
+}
+
+.btn:disabled {
+	opacity: 0.5;
+	cursor: default;
+}
+
+.btn.primary {
+	background: var(--accent);
+	border-color: var(--accent);
+	color: var(--accent-text);
+	font-weight: 600;
+}
+
+.btn.primary:hover:not(:disabled) {
+	filter: brightness(1.08);
+	background: var(--accent);
+}
+
+.icon-btn {
+	display: inline-grid;
+	place-items: center;
+	width: 32px;
+	height: 32px;
+	border: 0;
+	border-radius: var(--radius);
+	background: transparent;
+	color: var(--text-soft);
+}
+
+.icon-btn:hover:not(:disabled) {
+	background: var(--bg-hover);
+	color: var(--text);
+}
+
+.icon-btn:disabled {
+	opacity: 0.4;
+	cursor: default;
+}
+
+.field {
+	width: 100%;
+	height: 36px;
+	padding: 0 10px;
+	border: 1px solid var(--border);
+	border-radius: var(--radius);
+	background: var(--bg);
+}
+
+.field:focus {
+	outline: none;
+	border-color: var(--accent);
+	box-shadow: 0 0 0 3px var(--accent-soft);
+}
+
+.sr-only {
+	position: absolute;
+	width: 1px;
+	height: 1px;
+	overflow: hidden;
+	clip: rect(0 0 0 0);
+	white-space: nowrap;
+}
+
+/* People who asked their OS for less motion get none: no slides, spins or fades. */
+@media (prefers-reduced-motion: reduce) {
+	*,
+	*::before,
+	*::after {
+		animation-duration: 0.01ms !important;
+		animation-iteration-count: 1 !important;
+		transition-duration: 0.01ms !important;
+		scroll-behavior: auto !important;
+	}
+}

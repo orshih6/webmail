@@ -1,0 +1,37 @@
+# Local mail server + Postgres for development and integration tests. Not used in prod.
+#   dev/up.sh       start, issue a self-signed cert, create test mailboxes
+#   dev/down.sh     stop and wipe
+# The server's cert is self-signed, so the app must run with TLS_ACCEPT_INVALID_CERTS=1.
+name: webmail-dev
+services:
+  mail:
+    image: ghcr.io/docker-mailserver/docker-mailserver:15
+    hostname: mail.example.test
+    environment:
+      SSL_TYPE: manual
+      SSL_CERT_PATH: /tls/cert.pem
+      SSL_KEY_PATH: /tls/key.pem
+      ENABLE_SPAMASSASSIN: "0"
+      ENABLE_CLAMAV: "0"
+      ENABLE_FAIL2BAN: "0"
+      ENABLE_POSTGREY: "0"
+      ENABLE_AMAVIS: "0"
+      ENABLE_OPENDKIM: "0"
+      ENABLE_OPENDMARC: "0"
+      ENABLE_POLICYD_SPF: "0"
+      ENABLE_RSPAMD: "0"
+      PERMIT_DOCKER: none
+      LOG_LEVEL: warn
+    ports:
+      - "3993:993"
+      - "3465:465"
+    volumes:
+      - ./tls:/tls:ro
+      - ./mail-config:/tmp/docker-mailserver
+  postgres:
+    image: postgres:17
+    environment:
+      POSTGRES_PASSWORD: webmail
+      POSTGRES_DB: webmail
+    ports:
+      - "5434:5432"
