@@ -178,6 +178,81 @@ a {
 	white-space: nowrap;
 }
 
+/* ---- Browser surfaces, themed ------------------------------------------------------- */
+::selection {
+	background: var(--accent-soft);
+	color: var(--text);
+}
+:root {
+	caret-color: var(--accent);
+	accent-color: var(--accent);
+	scrollbar-color: var(--border) transparent;
+	scrollbar-width: thin;
+}
+
+/* ---- Loading ------------------------------------------------------------------------ */
+/* Skeletons stand in for content that is on its way. They only appear if the wait passes
+   ~150 ms (cached and fast loads never flash), then a soft highlight sweeps across them.
+   Reduced motion (below) leaves them static. */
+.skeleton {
+	animation: skeleton-in 0.2s ease-out 150ms both;
+}
+.sk {
+	display: block;
+	border-radius: 6px;
+	background: linear-gradient(
+			100deg,
+			transparent 30%,
+			color-mix(in srgb, var(--bg) 55%, transparent) 50%,
+			transparent 70%
+		)
+		var(--bg-hover);
+	background-size: 250% 100%;
+	animation: shimmer 1.6s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+}
+@keyframes skeleton-in {
+	from {
+		opacity: 0;
+	}
+}
+@keyframes shimmer {
+	from {
+		background-position: 120% 0;
+	}
+	to {
+		background-position: -120% 0;
+	}
+}
+
+/* A thin indeterminate line for refreshes of content that is already on screen. */
+.progress-line {
+	position: absolute;
+	left: 0;
+	right: 0;
+	bottom: -1px;
+	height: 2px;
+	overflow: hidden;
+	pointer-events: none;
+	animation: skeleton-in 0.2s ease-out 200ms both;
+}
+.progress-line::after {
+	content: "";
+	position: absolute;
+	inset: 0;
+	width: 40%;
+	border-radius: 2px;
+	background: var(--accent);
+	animation: progress-slide 1.1s cubic-bezier(0.65, 0, 0.35, 1) infinite;
+}
+@keyframes progress-slide {
+	from {
+		transform: translateX(-100%);
+	}
+	to {
+		transform: translateX(260%);
+	}
+}
+
 /* People who asked their OS for less motion get none: no slides, spins or fades. */
 @media (prefers-reduced-motion: reduce) {
 	*,

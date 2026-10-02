@@ -1,4 +1,7 @@
 <script lang="ts">
+import { cubicOut } from 'svelte/easing';
+import { prefersReducedMotion } from 'svelte/motion';
+import { slide } from 'svelte/transition';
 import { api, qs } from '$lib/api/client';
 import type { Thread } from '$lib/api/types/Thread';
 import { display, shortDate } from '$lib/format';
@@ -36,7 +39,12 @@ function toggle(k: string) {
 </script>
 
 {#if thread && thread.items.length > 1}
-	<section class="conversation" aria-label="Conversation">
+	<!-- It arrives after the message: unfold it into place instead of shoving the message down. -->
+	<section
+		class="conversation"
+		aria-label="Conversation"
+		in:slide={{ duration: prefersReducedMotion.current ? 0 : 260, easing: cubicOut }}
+	>
 		<h3>Conversation · {thread.items.length} messages</h3>
 		<ol>
 			{#each thread.items as h (id(h.folder, h.message.uid))}

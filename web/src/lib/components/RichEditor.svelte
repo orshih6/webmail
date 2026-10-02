@@ -22,7 +22,7 @@ export function textToHtml(text: string): string {
 </script>
 
 <script lang="ts">
-	import Icon from './Icon.svelte';
+	import Icon, { type IconName } from './Icon.svelte';
 
 	let {
 		html = $bindable(''),
@@ -131,24 +131,24 @@ export function focus() {
 		}
 	}
 
-	const tools: { icon?: string; label: string; title: string; run: () => void; style?: string }[] = [
-		{ label: 'B', title: 'Bold (⌘B)', run: () => cmd('bold'), style: 'font-weight:700' },
-		{ label: 'I', title: 'Italic (⌘I)', run: () => cmd('italic'), style: 'font-style:italic' },
-		{ label: 'U', title: 'Underline (⌘U)', run: () => cmd('underline'), style: 'text-decoration:underline' },
-		{ label: 'S', title: 'Strikethrough', run: () => cmd('strikeThrough'), style: 'text-decoration:line-through' },
-		{ label: '•', title: 'Bulleted list', run: () => cmd('insertUnorderedList') },
-		{ label: '1.', title: 'Numbered list', run: () => cmd('insertOrderedList') },
-		{ label: '❝', title: 'Quote', run: () => cmd('formatBlock', 'blockquote') },
-		{ label: '🔗', title: 'Link (⌘K)', run: link },
-		{ label: 'Tx', title: 'Clear formatting', run: () => cmd('removeFormat') }
+	const tools: { icon: IconName; title: string; run: () => void }[] = [
+		{ icon: 'bold', title: 'Bold (⌘B)', run: () => cmd('bold') },
+		{ icon: 'italic', title: 'Italic (⌘I)', run: () => cmd('italic') },
+		{ icon: 'underline', title: 'Underline (⌘U)', run: () => cmd('underline') },
+		{ icon: 'strike', title: 'Strikethrough', run: () => cmd('strikeThrough') },
+		{ icon: 'list', title: 'Bulleted list', run: () => cmd('insertUnorderedList') },
+		{ icon: 'listOrdered', title: 'Numbered list', run: () => cmd('insertOrderedList') },
+		{ icon: 'quote', title: 'Quote', run: () => cmd('formatBlock', 'blockquote') },
+		{ icon: 'link', title: 'Link (⌘K)', run: link },
+		{ icon: 'eraser', title: 'Clear formatting', run: () => cmd('removeFormat') }
 	];
 </script>
 
 <div class="rich">
 	<div class="toolbar" role="toolbar" aria-label="Formatting">
 		{#each tools as t (t.title)}
-			<button type="button" title={t.title} aria-label={t.title} style={t.style} onmousedown={(e) => e.preventDefault()} onclick={t.run}
-				>{t.label}</button
+			<button type="button" title={t.title} aria-label={t.title} onmousedown={(e) => e.preventDefault()} onclick={t.run}
+				><Icon name={t.icon} size={16} /></button
 			>
 		{/each}
 		<label class="img" title="Insert image">

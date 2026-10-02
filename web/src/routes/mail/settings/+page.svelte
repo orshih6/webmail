@@ -7,6 +7,7 @@ import type { Identity } from '$lib/api/types/Identity';
 import type { IdentityInput } from '$lib/api/types/IdentityInput';
 import type { Prefs } from '$lib/api/types/Prefs';
 import Icon from '$lib/components/Icon.svelte';
+import Skeleton from '$lib/components/Skeleton.svelte';
 import { app, applyTheme, brand, fail, pageTitle, toast } from '$lib/state.svelte';
 
 type Tab = 'general' | 'identities' | 'contacts' | 'about';
@@ -37,9 +38,11 @@ async function savePrefs(patch: Partial<Prefs>) {
 let identities = $state<Identity[]>([]);
 let editing = $state<IdentityInput | null>(null);
 
+let identitiesLoaded = $state(false);
 async function loadIdentities() {
 	try {
 		identities = await api<Identity[]>('GET', '/identities');
+		identitiesLoaded = true;
 	} catch (e) {
 		fail(e);
 	}
@@ -110,9 +113,11 @@ const shown = $derived(
 	contacts.filter((c) => `${c.name} ${c.email}`.toLowerCase().includes(filter.trim().toLowerCase()))
 );
 
+let contactsLoaded = $state(false);
 async function loadContacts() {
 	try {
 		contacts = await api<Contact[]>('GET', '/contacts');
+		contactsLoaded = true;
 	} catch (e) {
 		fail(e);
 	}
@@ -219,6 +224,7 @@ $effect(() => {
 				Identities change the name people see, where replies go, and your signature. Mail is always
 				sent from <strong>{app.email}</strong>.
 			</p>
+			{#if !identitiesLoaded}<div aria-busy="true"><Skeleton kind="lines" count={2} /></div>{/if}
 			<ul class="cards">
 				{#each identities as i (i.id ?? 'builtin')}
 					<li>
@@ -283,6 +289,7 @@ $effect(() => {
 			{#if contacts.length > 8}
 				<input class="field filter" type="search" placeholder="Filter contacts" bind:value={filter} aria-label="Filter contacts" />
 			{/if}
+			{#if !contactsLoaded}<div aria-busy="true"><Skeleton kind="lines" count={4} /></div>{/if}
 			<ul class="contacts">
 				{#each shown as c (c.id)}
 					<li>
@@ -311,7 +318,7 @@ $effect(() => {
 						{/if}
 					</li>
 				{:else}
-					<li class="empty">No contacts yet. People you write to are suggested automatically while you type.</li>
+					{#if contactsLoaded}<li class="empty">No contacts yet. People you write to are suggested automatically while you type.</li>{/if}
 				{/each}
 			</ul>
 		{/if}

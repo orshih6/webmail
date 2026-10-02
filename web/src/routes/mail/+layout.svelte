@@ -7,6 +7,7 @@ import type { SessionInfo } from '$lib/api/types/SessionInfo';
 import ConnectionBanner from '$lib/components/ConnectionBanner.svelte';
 import ReauthDialog from '$lib/components/ReauthDialog.svelte';
 import Sidebar from '$lib/components/Sidebar.svelte';
+import Skeleton from '$lib/components/Skeleton.svelte';
 import { app, applyTheme, fail } from '$lib/state.svelte';
 
 let { children } = $props();
@@ -107,6 +108,17 @@ $effect(() => {
 		<Sidebar onrefresh={() => app.changed++} />
 		<div class="main">{@render children()}</div>
 	</div>
+{:else}
+	<!-- Checking the session: show the shape of the app, not a blank page. -->
+	<div class="shell boot" aria-busy="true">
+		<span class="sr-only" role="status">Loading your mailbox…</span>
+		<div class="boot-nav">
+			<div class="boot-brand"><img src="/icons/logo.svg" alt="" width="26" height="26" /></div>
+			<span class="sk boot-compose"></span>
+			<Skeleton kind="folders" count={5} />
+		</div>
+		<div class="boot-list"><Skeleton kind="rows" count={9} /></div>
+	</div>
 {/if}
 
 <style>
@@ -129,6 +141,38 @@ $effect(() => {
 	}
 	.skip:focus {
 		transform: none;
+	}
+	.boot-nav {
+		width: 240px;
+		flex: none;
+		display: flex;
+		flex-direction: column;
+		gap: 10px;
+		padding: 14px 10px;
+		background: var(--bg-soft);
+		border-right: 1px solid var(--border);
+	}
+	.boot-brand {
+		padding: 2px 8px 6px;
+	}
+	.boot-compose {
+		height: 40px;
+		margin: 0 4px 10px;
+		border-radius: var(--radius);
+	}
+	.boot-list {
+		width: 420px;
+		padding-top: 52px;
+		border-right: 1px solid var(--border);
+	}
+	@media (max-width: 760px) {
+		.boot-nav {
+			display: none;
+		}
+		.boot-list {
+			width: 100%;
+			border-right: 0;
+		}
 	}
 	.main {
 		flex: 1;

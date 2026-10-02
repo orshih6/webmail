@@ -39,6 +39,7 @@ import type { MessageDetail } from '$lib/api/types/MessageDetail';
 import { display, fullList, longDate, size } from '$lib/format';
 import { fail, toast } from '$lib/state.svelte';
 import Icon from './Icon.svelte';
+import Skeleton from './Skeleton.svelte';
 
 let {
 	folder,
@@ -202,7 +203,12 @@ const imageAttachments = $derived(
 		{/if}
 	</article>
 {:else}
-	<div class="placeholder">{loading ? 'Loading…' : ''}</div>
+	<div class="placeholder" aria-busy={loading}>
+		{#if loading}
+			<span class="sr-only" role="status">Loading message…</span>
+			<Skeleton kind="message" />
+		{/if}
+	</div>
 {/if}
 
 <style>
@@ -355,8 +361,6 @@ const imageAttachments = $derived(
 	}
 	.placeholder {
 		flex: 1;
-		display: grid;
-		place-items: center;
-		color: var(--text-faint);
+		min-height: 0;
 	}
 </style>

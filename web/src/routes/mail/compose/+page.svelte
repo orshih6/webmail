@@ -13,6 +13,8 @@ import type { Upload } from '$lib/api/types/Upload';
 import Icon from '$lib/components/Icon.svelte';
 import RecipientInput from '$lib/components/RecipientInput.svelte';
 import RichEditor, { textToHtml } from '$lib/components/RichEditor.svelte';
+import Skeleton from '$lib/components/Skeleton.svelte';
+import Spinner from '$lib/components/Spinner.svelte';
 import { display, folderUrl, fullList, longDate, size } from '$lib/format';
 import {
 	app,
@@ -520,7 +522,11 @@ const title = $derived(
 		</div>
 	{/if}
 	{#if !ready}
-		<div class="loading">Loading…</div>
+		<div class="loading" aria-busy="true">
+			<span class="sr-only" role="status">Loading…</span>
+			<Skeleton kind="form" count={2} />
+			<div class="sk-body"><Skeleton kind="message" /></div>
+		</div>
 	{:else}
 		<div class="fields" oninput={() => (dirty = true)}>
 			{#if identities.length > 1}
@@ -576,7 +582,7 @@ const title = $derived(
 
 		<div class="actions">
 			<button class="btn primary" onclick={send} disabled={sending || uploading > 0}>
-				<Icon name="send" size={16} />
+				{#if sending}<Spinner />{:else}<Icon name="send" size={16} />{/if}
 				{sending ? 'Sending…' : 'Send'}
 			</button>
 			<label class="btn attach">
@@ -636,8 +642,12 @@ const title = $derived(
 		min-width: 200px;
 	}
 	.loading {
-		padding: 32px;
-		color: var(--text-faint);
+		flex: 1;
+	}
+	/* The body placeholder without the reader's title row. */
+	.sk-body :global(.title),
+	.sk-body :global(.meta) {
+		display: none;
 	}
 	.fields {
 		display: flex;

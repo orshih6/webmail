@@ -9,6 +9,7 @@ import { app, brand, clearComposeBackups, fail, toast, undoToast } from '$lib/st
 import Icon, { type IconName } from './Icon.svelte';
 import Menu, { type MenuItem } from './Menu.svelte';
 import { forgetMessages } from './MessageView.svelte';
+import Skeleton from './Skeleton.svelte';
 
 let { onrefresh }: { onrefresh: () => void } = $props();
 
@@ -215,7 +216,8 @@ async function logout() {
 		</button>
 	</div>
 
-	<ul>
+	<ul aria-busy={!app.folders.length}>
+		{#if !app.folders.length}<li><Skeleton kind="folders" count={5} /></li>{/if}
 		{#each app.folders as f (f.path)}
 			{#if edit?.mode === 'rename' && edit.folder.path === f.path}
 				{@render editor(depth(f))}

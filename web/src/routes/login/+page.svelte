@@ -2,6 +2,7 @@
 import { goto } from '$app/navigation';
 import { api } from '$lib/api/client';
 import type { SessionInfo } from '$lib/api/types/SessionInfo';
+import Spinner from '$lib/components/Spinner.svelte';
 import { app, brand, pageTitle } from '$lib/state.svelte';
 
 let email = $state('');
@@ -53,6 +54,7 @@ async function submit(e: SubmitEvent) {
 		</label>
 		{#if error}<p class="error" role="alert">{error}</p>{/if}
 		<button class="btn primary" type="submit" disabled={busy}>
+			{#if busy}<Spinner />{/if}
 			{busy ? 'Signing in…' : 'Sign in'}
 		</button>
 	</form>

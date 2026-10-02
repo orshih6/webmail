@@ -14,6 +14,7 @@ import Conversation from '$lib/components/Conversation.svelte';
 import Icon from '$lib/components/Icon.svelte';
 import Menu from '$lib/components/Menu.svelte';
 import MessageView, { prefetchMessage } from '$lib/components/MessageView.svelte';
+import Skeleton from '$lib/components/Skeleton.svelte';
 import { display, shortDate } from '$lib/format';
 import { app, fail, pageTitle, specialPath, toast, undoToast } from '$lib/state.svelte';
 
@@ -47,8 +48,12 @@ const current = $derived(app.folders.find((f) => f.path === folder));
 const showRecipient = $derived(current?.special === 'sent' || current?.special === 'drafts');
 const inDrafts = $derived(current?.special === 'drafts');
 
+/** First load of a view shows skeletons (`loading`); a refresh of rows already on screen
+ *  shows only the thin progress line (`refreshing`). */
+let refreshing = $state(false);
 async function load(key: string, showSpinner: boolean) {
 	if (showSpinner) loading = true;
+	else refreshing = true;
 	try {
 		const res = await api<MessagePage>(
 			'GET',
@@ -60,8 +65,10 @@ async function load(key: string, showSpinner: boolean) {
 		fail(e);
 	} finally {
 		loading = false;
+		refreshing = false;
 	}
 }
+let shownKey = '';
 const listKey = () => `${folder}\n${query}\n${filter}\n${pageNo}\n${app.prefs.page_size}`;
 
 // ---- Search across all folders ------------------------------------------------------------
@@ -112,7 +119,10 @@ $effect(() => {
 	}
 	const key = listKey();
 	const hit = cache.get(key);
-	if (hit) list = hit;
+	// Never show one view's rows under another's header: a different folder, search, filter
+	// or page with nothing cached starts from the skeleton, not the old list.
+	list = hit ?? (list && list.folder === folder && key === shownKey ? list : null);
+	shownKey = key;
 	load(key, !hit);
 });
 
@@ -425,6 +435,7 @@ function onkey(e: KeyboardEvent) {
 			</div>
 		{:else}
 			<div class="bar">
+				{#if (loading || refreshing) && (allMode ? !!hits : rows.length > 0)}<span class="progress-line"></span>{/if}
 				<button class="icon-btn menu" aria-label="Folders" onclick={() => (app.drawer = true)}><Icon name="menu" /></button>
 				<form class="search" role="search" onsubmit={search}>
 					<Icon name="search" size={16} />
@@ -443,7 +454,7 @@ function onkey(e: KeyboardEvent) {
 					aria-pressed={conversations}
 					onclick={toggleConversations}><Icon name="replyAll" /></button
 				>
-				<button class="icon-btn" title="Refresh" class:spin={loading} onclick={() => app.changed++}>
+				<button class="icon-btn" title="Refresh" onclick={() => app.changed++}>
 					<Icon name="refresh" />
 				</button>
 			</div>
@@ -488,7 +499,11 @@ function onkey(e: KeyboardEvent) {
 						</span>
 					</li>
 				{:else}
-					{#if !loading}<li class="empty">Nothing matches your search in any folder.</li>{/if}
+					{#if loading}
+						<li class="sk-wrap"><Skeleton kind="rows" count={6} /></li>
+					{:else}
+						<li class="empty">Nothing matches your search in any folder.</li>
+					{/if}
 				{/each}
 				{#if hits?.truncated}
 					<li class="empty">Showing the newest {hits.hits.length}. Refine the search to see older ones.</li>
@@ -557,7 +572,9 @@ function onkey(e: KeyboardEvent) {
 					</span>
 				</li>
 			{:else}
-				{#if !loading}
+				{#if loading}
+					<li class="sk-wrap"><Skeleton kind="rows" count={9} /></li>
+				{:else}
 					<li class="empty">{query
 							? 'Nothing matches your search.'
 							: filter === 'unread'
@@ -672,6 +689,14 @@ function onkey(e: KeyboardEvent) {
 		padding: 0 10px;
 		border-bottom: 1px solid var(--border);
 	}
+	.bar {
+		position: relative;
+	}
+	.rows li.sk-wrap,
+	.rows li.sk-wrap:hover {
+		border: 0;
+		background: none;
+	}
 	.grow {
 		flex: 1;
 	}
@@ -715,14 +740,6 @@ function onkey(e: KeyboardEvent) {
 	}
 	.icon-btn.danger:hover {
 		color: var(--danger);
-	}
-	.spin :global(svg) {
-		animation: spin 0.8s linear infinite;
-	}
-	@keyframes spin {
-		to {
-			transform: rotate(360deg);
-		}
 	}
 	.menu,
 	.back {
