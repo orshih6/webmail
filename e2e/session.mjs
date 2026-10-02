@@ -33,14 +33,30 @@ await p.locator('input[aria-label=To]').fill('bob@example.test');
 await p.fill('label:has-text("Subject") input', subject);
 await p.fill('textarea', 'Written before the session ran out.');
 expireSessions('alice@example.test');
-await p.click('button:has-text("Send")');
-await p.waitForSelector('dialog[open] >> text=Your session expired');
+// Any request can be the first to notice the expiry — the Send, or a background refresh
+// that wins the race — and the dialog then covers the page. Either way the user signs in
+// over it; if the Send itself was what hit the 401, it is retried and goes out.
+const dialog = p.locator('dialog[open]', { hasText: 'Your session expired' });
+let sendClicked = await p
+  .click('button:has-text("Send")', { timeout: 3000 })
+  .then(() => true)
+  .catch(() => false);
+await dialog.waitFor();
 await p.fill('dialog input[type=password]', 'wrong');
 await p.click('dialog button:has-text("Continue")');
 await p.waitForSelector('dialog .error');
 await p.fill('dialog input[type=password]', 'alicepass');
 await p.click('dialog button:has-text("Continue")');
-await p.waitForSelector('text=Message sent', { timeout: 20000 });
+await dialog.waitFor({ state: 'detached' });
+// If a background request opened the dialog first, the Send click never landed: send now.
+const sent = p.locator('text=Message sent');
+if (!sendClicked || !(await sent.isVisible().catch(() => false))) {
+  await sent.waitFor({ timeout: 3000 }).catch(async () => {
+    await p.click('button:has-text("Send")');
+    sendClicked = true;
+  });
+}
+await sent.waitFor({ timeout: 20000 });
 const bob = await apiClient('bob@example.test', 'bobpass');
 for (let i = 0; ; i++) {
   const page = await bob('GET', `/api/messages?folder=INBOX&q=${encodeURIComponent(subject)}`);
