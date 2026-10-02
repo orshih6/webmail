@@ -34,7 +34,7 @@ export function prefetchMessage(folder: string, uid: number) {
 </script>
 
 <script lang="ts">
-import { ApiError, api, qs } from '$lib/api/client';
+import { ApiError, api, get, qs } from '$lib/api/client';
 import type { MessageDetail } from '$lib/api/types/MessageDetail';
 import { display, fullList, longDate, size } from '$lib/format';
 import { fail, toast } from '$lib/state.svelte';
@@ -76,9 +76,10 @@ $effect(() => {
 	const hit = cache.get(k);
 	if (hit) show(hit);
 	loading = !hit;
-	api<MessageDetail>(
-		'GET',
-		`/message?${qs({ folder: key.folder, uid: key.uid, images: key.images ? 1 : undefined })}`
+	const abort = new AbortController();
+	get<MessageDetail>(
+		`/message?${qs({ folder: key.folder, uid: key.uid, images: key.images ? 1 : undefined })}`,
+		abort.signal
 	)
 		.then((d) => {
 			if (hit) d.flags.seen = d.flags.seen || hit.flags.seen; // our own mark may be in flight
@@ -97,6 +98,7 @@ $effect(() => {
 		.finally(() => !cancelled && (loading = false));
 	return () => {
 		cancelled = true;
+		abort.abort();
 	};
 });
 

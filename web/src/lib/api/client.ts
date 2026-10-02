@@ -42,10 +42,11 @@ export async function api<T = void>(
 	method: Method,
 	path: string,
 	body?: unknown,
-	retried = false
+	retried = false,
+	signal?: AbortSignal
 ): Promise<T> {
 	const headers: Record<string, string> = {};
-	const init: RequestInit = { method, headers, credentials: 'same-origin' };
+	const init: RequestInit = { method, headers, credentials: 'same-origin', signal };
 	if (body instanceof FormData) {
 		init.body = body;
 	} else if (body !== undefined) {
@@ -61,13 +62,15 @@ export async function api<T = void>(
 	try {
 		res = await fetch(`/api${path}`, init);
 	} catch {
+		// Cancelled on purpose (the view that wanted it is gone): not a connectivity problem.
+		if (signal?.aborted) throw new ApiError(0, 'cancelled', false, path);
 		app.connection = navigator.onLine ? 'mail' : 'offline';
 		throw new ApiError(0, 'Network error — check your connection', true, path);
 	}
 	if (res.status === 401 && path !== '/login') {
 		// Mid-session expiry: sign in again over the page and retry, so nothing is lost.
 		if (app.email && path !== '/session' && path !== '/logout' && !retried) {
-			if (await reauthenticate()) return api<T>(method, path, body, true);
+			if (await reauthenticate()) return api<T>(method, path, body, true, signal);
 		}
 		app.email = '';
 		await goto('/login');
@@ -98,3 +101,8 @@ export const qs = (params: Record<string, string | number | undefined | null>) =
 			.filter(([, v]) => v !== undefined && v !== null && v !== '')
 			.map(([k, v]) => [k, String(v)])
 	).toString();
+
+/** GET that is cancelled when `signal` aborts — for views that may go away before the
+ *  answer arrives (moving through messages, deleting the open one). */
+export const get = <T>(path: string, signal: AbortSignal) =>
+	api<T>('GET', path, undefined, false, signal);

@@ -2,7 +2,7 @@
 import { cubicOut } from 'svelte/easing';
 import { prefersReducedMotion } from 'svelte/motion';
 import { slide } from 'svelte/transition';
-import { api, qs } from '$lib/api/client';
+import { get, qs } from '$lib/api/client';
 import type { Thread } from '$lib/api/types/Thread';
 import { display, shortDate } from '$lib/format';
 import { app } from '$lib/state.svelte';
@@ -18,11 +18,13 @@ $effect(() => {
 	let cancelled = false;
 	thread = null;
 	open = new Set();
-	api<Thread>('GET', `/thread?${qs(key)}`)
+	const abort = new AbortController();
+	get<Thread>(`/thread?${qs(key)}`, abort.signal)
 		.then((t) => !cancelled && (thread = t))
 		.catch(() => {}); // the message itself still shows; the strip is a bonus
 	return () => {
 		cancelled = true;
+		abort.abort();
 	};
 });
 
