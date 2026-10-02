@@ -25,6 +25,10 @@ COPY --from=web /web/build web/build
 RUN cargo build --release --locked
 
 FROM gcr.io/distroless/cc-debian12:nonroot
+# Links the published image to its repository on GitHub (and shows source/licence there).
+LABEL org.opencontainers.image.source="https://github.com/orshih6/webmail" \
+      org.opencontainers.image.description="A fast, secure, self-hosted webmail client for any IMAP/SMTP server" \
+      org.opencontainers.image.licenses="AGPL-3.0-only"
 COPY --from=build /app/target/release/webmail /webmail
 EXPOSE 8080
 ENTRYPOINT ["/webmail"]
