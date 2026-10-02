@@ -948,20 +948,6 @@ async fn rich_text_and_reading_essentials() {
     );
 }
 
-async fn inbox_subjects(c: &Client) -> std::collections::HashMap<u64, String> {
-    c.get("/api/messages?folder=INBOX&page_size=200").await["messages"]
-        .as_array()
-        .unwrap()
-        .iter()
-        .map(|m| {
-            (
-                m["uid"].as_u64().unwrap(),
-                m["subject"].as_str().unwrap().to_owned(),
-            )
-        })
-        .collect()
-}
-
 #[tokio::test]
 async fn message_cache_keeps_flags_fresh_and_users_apart() {
     if std::env::var("WEBMAIL_IT").as_deref() != Ok("1") {
@@ -1007,30 +993,48 @@ async fn message_cache_keeps_flags_fresh_and_users_apart() {
     assert_eq!(second["text"], first["text"]);
     assert_eq!(second["subject"], subject);
 
-    // Same folder + UID in another account is a different message: never shared.
-    let (a, b) = (inbox_subjects(&alice).await, inbox_subjects(&bob).await);
-    let shared: Vec<u64> = a
-        .keys()
-        .filter(|u| b.contains_key(u))
-        .copied()
-        .take(5)
-        .collect();
-    assert!(
-        !shared.is_empty(),
-        "test needs a UID present in both inboxes"
+    // Same folder name + UID in another account is a different message: never shared.
+    // Each user files one fresh message into a new folder of the same name, so both
+    // folders hold exactly UID 1.
+    let folder = format!("Iso{tag}");
+    for (who, client) in [("alice", &alice), ("bob", &bob)] {
+        let subj = format!("iso {who} {tag}");
+        alice
+            .post(
+                "/api/send",
+                compose(&format!("{who}@example.test"), &subj, "x"),
+            )
+            .await;
+        let uid = client.wait_for("INBOX", &subj).await["uid"].clone();
+        client
+            .post(
+                "/api/folders/create",
+                json!({"parent": null, "name": folder}),
+            )
+            .await;
+        client
+            .post(
+                "/api/messages/move",
+                json!({"folder": "INBOX", "uids": [uid], "to": folder}),
+            )
+            .await;
+    }
+    let url = format!("/api/message?folder={folder}&uid=1");
+    let bob_first = bob.get(&url).await; // warm bob's entry first
+    assert_eq!(bob_first["subject"], format!("iso bob {tag}"));
+    assert_eq!(
+        alice.get(&url).await["subject"],
+        format!("iso alice {tag}"),
+        "alice sees her own"
     );
-    for u in shared {
-        let url = format!("/api/message?folder=INBOX&uid={u}");
-        bob.get(&url).await; // warm bob's entry first
-        assert_eq!(
-            alice.get(&url).await["subject"],
-            a[&u],
-            "alice sees her own message"
-        );
-        assert_eq!(
-            bob.get(&url).await["subject"],
-            b[&u],
-            "bob sees his own message"
-        );
+    assert_eq!(
+        bob.get(&url).await["subject"],
+        format!("iso bob {tag}"),
+        "bob sees his own"
+    );
+    for client in [&alice, &bob] {
+        client
+            .post("/api/folders/delete", json!({"folder": folder}))
+            .await;
     }
 }
