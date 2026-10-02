@@ -53,6 +53,9 @@ export async function api<T = void>(
 		init.body = JSON.stringify(body);
 	}
 	if (method !== 'GET') headers['x-csrf-token'] = app.csrf;
+	// Our own moves/flags change unread counts; see app.selfChangeUntil.
+	if (method === 'POST' && /^\/(messages|folders)\//.test(path))
+		app.selfChangeUntil = Date.now() + 5000;
 
 	let res: Response;
 	try {

@@ -27,6 +27,9 @@ export const app = $state({
 	connection: 'ok' as 'ok' | 'mail' | 'offline',
 	/** Read out by screen readers (polite live region in the mail layout). */
 	announcement: '',
+	/** Until this time (ms), unread increases are the user's own doing (undo, move back,
+	 *  mark unread) and must not be announced as new mail. */
+	selfChangeUntil: 0,
 	/** Set while the "session expired, sign in again" dialog is open. */
 	reauth: null as null | { resolve: (ok: boolean) => void },
 	/** Messages being dragged from the list onto a folder. */

@@ -2,7 +2,7 @@
 // light and dark themes. Fails on any violation of "serious" or "critical" impact and
 // prints the rest.
 import AxeBuilder from '@axe-core/playwright';
-import { BASE as base, finish, launch, resetAll } from './lib.mjs';
+import { BASE as base, apiClient, finish, launch, resetAll } from './lib.mjs';
 
 const problems = [];
 const minor = [];
@@ -101,6 +101,20 @@ for (const scheme of ['light', 'dark']) {
   const motion = await p.evaluate(() => getComputedStyle(document.querySelector('nav')).transitionDuration);
   if (!/^0\.00001s|^0s|1e-05s/.test(motion)) problems.push('reduced motion: nav still transitions ' + motion);
   step('folder announced to screen readers; reduced motion disables transitions');
+
+  // Real new mail is announced; our own Undo above was not (checked just before).
+  await p.waitForTimeout(5500); // past the "own change" quiet window
+  const bob = await apiClient('bob@example.test', 'bobpass');
+  await bob('POST', '/api/send', {
+    to: 'alice@example.test', cc: '', bcc: '', subject: `Announce me ${Date.now()}`, text: 'x',
+    uploads: [], keep: null, in_reply_to: null, references: [], reply_of: null, forward_of: null, draft: null
+  });
+  await p.waitForFunction(
+    () => /new message/.test(document.querySelector('[aria-live=polite][aria-atomic=true]')?.textContent ?? ''),
+    null,
+    { timeout: 30000 }
+  ).catch(() => problems.push('arriving mail was not announced'));
+  step('arriving mail is announced; undoing a delete is not');
 }
 
 await browser.close();

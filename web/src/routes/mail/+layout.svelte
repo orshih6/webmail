@@ -26,7 +26,14 @@ async function refreshFolders() {
 		const before = app.folders.find((f) => f.special === 'inbox')?.unread;
 		app.folders = await api<Folder[]>('GET', '/folders');
 		const after = app.folders.find((f) => f.special === 'inbox')?.unread;
-		if (before !== undefined && after !== undefined && after > before) {
+		// Only mail that arrived on its own is "new"; an Undo or "mark unread" also raises
+		// the count but must not be announced as new mail.
+		if (
+			before !== undefined &&
+			after !== undefined &&
+			after > before &&
+			Date.now() > app.selfChangeUntil
+		) {
 			const n = after - before;
 			app.announcement = `${n} new message${n === 1 ? '' : 's'} in Inbox`;
 		}
