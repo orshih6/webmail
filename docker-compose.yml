@@ -1,0 +1,54 @@
+# Webmail + Postgres, pointed at your existing mail server (IMAPS 993 / SMTPS 465).
+#
+#   cp .env.example .env        # set IMAP_HOST (and SMTP_HOST if it differs)
+#   docker compose up -d        # the first run builds from source: ~5–10 minutes
+#   open http://localhost:8080  # sign in with a mailbox on your server
+#
+# To use the published image instead of building, replace `build: .` below with
+#   image: ghcr.io/orshih6/webmail:latest
+#
+# For anything beyond your own machine, put an HTTPS reverse proxy (Caddy, nginx,
+# Traefik…) in front of it; see the README.
+name: webmail
+
+services:
+  webmail:
+    build: .
+    image: webmail:local
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgres://webmail:${POSTGRES_PASSWORD:-webmail}@postgres:5432/webmail
+      IMAP_HOST: ${IMAP_HOST:?set IMAP_HOST in .env (copy .env.example)}
+      IMAP_PORT: ${IMAP_PORT:-993}
+      SMTP_HOST: ${SMTP_HOST:-${IMAP_HOST}}
+      SMTP_PORT: ${SMTP_PORT:-465}
+      APP_NAME: ${APP_NAME:-Webmail}
+      SOURCE_URL: ${SOURCE_URL:-https://github.com/orshih6/webmail}
+      MAIL_TIMEOUT_SECS: ${MAIL_TIMEOUT_SECS:-30}
+      MESSAGE_CACHE_MB: ${MESSAGE_CACHE_MB:-64}
+      COOKIE_SECURE: ${COOKIE_SECURE:-1}
+      TLS_ACCEPT_INVALID_CERTS: ${TLS_ACCEPT_INVALID_CERTS:-0}
+    ports:
+      # Only this machine by default; set WEBMAIL_BIND=0.0.0.0 to expose it (behind HTTPS).
+      - "${WEBMAIL_BIND:-127.0.0.1}:${WEBMAIL_PORT:-8080}:8080"
+
+  postgres:
+    image: postgres:17
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: webmail
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-webmail}
+      POSTGRES_DB: webmail
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U webmail"]
+      interval: 3s
+      retries: 30
+    # No published port: only the webmail container talks to it.
+
+volumes:
+  pgdata: {}

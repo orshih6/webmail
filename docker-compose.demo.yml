@@ -1,0 +1,133 @@
+# A complete trial with its own test mail server — nothing to configure:
+#
+#   docker compose -f docker-compose.demo.yml up -d   (first run builds from source: ~5–10 min)
+#   open http://localhost:8080  and sign in as  demo@example.test / demo
+#
+# A second account, friend@example.test / friend, is there to write to and reply from.
+# The bundled mail server (docker-mailserver) lives on a private network, uses a
+# self-signed certificate and can't send to or receive from the internet. It is for
+# trying Webmail out — for real use, run docker-compose.yml against your mail server.
+#
+#   docker compose -f docker-compose.demo.yml down -v   removes it all, mailboxes included
+name: webmail-demo
+
+services:
+  webmail:
+    build: .
+    image: webmail:local
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      mail:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgres://webmail:webmail@postgres:5432/webmail
+      IMAP_HOST: mail
+      SMTP_HOST: mail
+      APP_NAME: Webmail (demo)
+      # Demo only: the test mail server's certificate is self-signed, and the demo runs on
+      # plain http. Never set these two in a real deployment.
+      TLS_ACCEPT_INVALID_CERTS: "1"
+      COOKIE_SECURE: "0"
+    ports:
+      - "127.0.0.1:${WEBMAIL_PORT:-8080}:8080"
+
+  postgres:
+    image: postgres:17
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: webmail
+      POSTGRES_PASSWORD: webmail
+      POSTGRES_DB: webmail
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U webmail"]
+      interval: 3s
+      retries: 30
+
+  # One-time setup for the test mail server: a self-signed certificate, the two accounts,
+  # and a welcome message waiting in demo's inbox. Skips whatever already exists.
+  mail-init:
+    image: ghcr.io/docker-mailserver/docker-mailserver:15
+    entrypoint: ["/bin/bash", "-euc"]
+    command:
+      - |
+        if [ ! -s /tls/cert.pem ]; then
+          openssl req -x509 -newkey rsa:2048 -nodes -days 3650 -subj "/CN=mail" \
+            -addext "subjectAltName=DNS:mail,DNS:mail.example.test" \
+            -keyout /tls/key.pem -out /tls/cert.pem 2>/dev/null
+        fi
+        if [ ! -s /cfg/postfix-accounts.cf ]; then
+          for acct in demo:demo friend:friend; do
+            echo "$${acct%%:*}@example.test|$$(doveadm pw -s SHA512-CRYPT -p "$${acct#*:}")" >> /cfg/postfix-accounts.cf
+          done
+          box=/var/mail/example.test/demo/new
+          mkdir -p "$$box"
+          cat > "$$box/$$(date +%s).welcome.demo" <<'MAIL'
+        From: Webmail <welcome@example.test>
+        To: Demo <demo@example.test>
+        Subject: Welcome to Webmail 👋
+        Date: Mon, 1 Jan 2024 09:00:00 +0000
+        Message-ID: <welcome@example.test>
+        MIME-Version: 1.0
+        Content-Type: text/plain; charset=utf-8
+
+        Hi!
+
+        This is a complete demo: a test mail server, two accounts, and Webmail in front.
+
+        Try writing to friend@example.test, then sign out and in as friend / friend to
+        read it and reply. Press / to search, c to compose, j and k to move between
+        messages — Settings → About lists every shortcut.
+
+        Enjoy!
+        MAIL
+          chown -R 5000:5000 /var/mail/example.test
+        fi
+        echo "mail-init: done"
+    volumes:
+      - mail-config:/cfg
+      - mail-tls:/tls
+      - mail-data:/var/mail
+
+  mail:
+    image: ghcr.io/docker-mailserver/docker-mailserver:15
+    hostname: mail.example.test
+    restart: unless-stopped
+    depends_on:
+      mail-init:
+        condition: service_completed_successfully
+    environment:
+      SSL_TYPE: manual
+      SSL_CERT_PATH: /tls/cert.pem
+      SSL_KEY_PATH: /tls/key.pem
+      # Keep the test server light: no spam/virus filtering, no DKIM.
+      ENABLE_SPAMASSASSIN: "0"
+      ENABLE_CLAMAV: "0"
+      ENABLE_FAIL2BAN: "0"
+      ENABLE_POSTGREY: "0"
+      ENABLE_AMAVIS: "0"
+      ENABLE_OPENDKIM: "0"
+      ENABLE_OPENDMARC: "0"
+      ENABLE_POLICYD_SPF: "0"
+      ENABLE_RSPAMD: "0"
+      PERMIT_DOCKER: connected-networks
+      LOG_LEVEL: warn
+    volumes:
+      - mail-config:/tmp/docker-mailserver
+      - mail-tls:/tls:ro
+      - mail-data:/var/mail
+    healthcheck:
+      # Ready when IMAPS answers.
+      test: ["CMD-SHELL", "bash -c '</dev/tcp/127.0.0.1/993' || exit 1"]
+      interval: 5s
+      retries: 60
+      start_period: 20s
+
+volumes:
+  pgdata: {}
+  mail-config: {}
+  mail-tls: {}
+  mail-data: {}

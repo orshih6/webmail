@@ -73,17 +73,31 @@ Found a problem? See [SECURITY.md](SECURITY.md).
 
 ## Quick start
 
+### Try it — no mail server needed
+
+```bash
+git clone https://github.com/orshih6/webmail && cd webmail
+docker compose -f docker-compose.demo.yml up -d     # first run builds from source: ~5–10 min
+```
+
+Open <http://localhost:8080> and sign in as **`demo@example.test` / `demo`**. A bundled
+test mail server (docker-mailserver, private network, self-signed certificate) holds two
+accounts — write to `friend@example.test`, then sign in as `friend` / `friend` to read it.
+`docker compose -f docker-compose.demo.yml down -v` removes everything.
+
+### Run it against your mail server
+
 You need an IMAP/SMTP server reachable over IMAPS (993) and SMTPS (465).
 
 ```bash
-curl -O https://raw.githubusercontent.com/orshih6/webmail/main/deploy/docker-compose.yml
-IMAP_HOST=mail.example.com POSTGRES_PASSWORD=$(openssl rand -hex 16) \
-  docker compose up -d
+git clone https://github.com/orshih6/webmail && cd webmail
+cp .env.example .env        # set IMAP_HOST (and SMTP_HOST if it differs)
+docker compose up -d
 ```
 
-Then put an HTTPS reverse proxy (Caddy, nginx, Traefik…) in front of port 8080 and open
-it. Session cookies are `Secure`, so plain http only works for local testing with
-`COOKIE_SECURE=0`. A Kubernetes example is in [`deploy/kubernetes/`](deploy/kubernetes/).
+It listens on `127.0.0.1:8080`. For anything beyond your own machine, put an HTTPS
+reverse proxy (Caddy, nginx, Traefik…) in front of it. A Kubernetes example is in
+[`deploy/kubernetes/`](deploy/kubernetes/).
 
 ## Configuration
 

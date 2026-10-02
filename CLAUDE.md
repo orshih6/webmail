@@ -12,7 +12,10 @@ time. Configured entirely by environment (`src/config.rs`, documented in README)
   `web/build/` with an `index.html` fallback for client routes.
 - `web/` — SvelteKit (`adapter-static`, `ssr = false`), Svelte 5 runes, TypeScript, pnpm,
   Biome. No UI kit, no jQuery-style libraries: keep the bundle small.
-- `deploy/` — generic Docker Compose and Kubernetes examples (no real hostnames or secrets).
+- `docker-compose.yml` — webmail + Postgres for your own mail server (configured by `.env`,
+  see `.env.example`); `docker-compose.demo.yml` — a self-contained trial with a bundled test
+  mail server. `deploy/kubernetes/` — a generic Kubernetes example. None of these carry real
+  hostnames or secrets.
 - `dev/` — the docker-mailserver + Postgres stack for development and tests; `e2e/` — browser
   walkthroughs and the accessibility audit.
 
