@@ -1,2 +1,6 @@
 allowBuilds:
   esbuild: true
+
+# cookie < 0.7.0 (GHSA-pxg6-pf52-xh8x) via @sveltejs/kit, build-time only; pin the fix.
+overrides:
+  cookie: ^0.7.0
