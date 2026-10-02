@@ -12,10 +12,50 @@ mkdirSync(SHOTS, { recursive: true });
  *  the fake tracker domain in the seeded newsletter after "Show images". */
 export const EXPECTED_NOISE = /401|ERR_NAME_NOT_RESOLVED/;
 
-export function launch() {
+const openPages = new Set();
+let crashHandlerInstalled = false;
+
+/** On an uncaught failure, screenshot every open page (to e2e/shots/, uploaded by CI) and
+ *  dump its URL before exiting — a failing step otherwise leaves no evidence of what the
+ *  page actually looked like. */
+function installCrashHandler() {
+  if (crashHandlerInstalled) return;
+  crashHandlerInstalled = true;
+  process.on('uncaughtException', async (err) => {
+    console.error(err);
+    const script = process.argv[1].split('/').pop().replace(/\.mjs$/, '');
+    let i = 0;
+    for (const p of openPages) {
+      const name = `${SHOTS}crash-${script}-${i++}.png`;
+      await p.screenshot({ path: name, fullPage: true }).catch(() => {});
+      console.error(`  page ${i}: ${p.url()} → ${name}`);
+    }
+    process.exit(1);
+  });
+}
+
+export async function launch() {
   // System Chrome by default (no download); E2E_CHANNEL=chromium uses Playwright's own.
   const channel = process.env.E2E_CHANNEL ?? 'chrome';
-  return chromium.launch(channel === 'chromium' ? {} : { channel });
+  const browser = await chromium.launch(channel === 'chromium' ? {} : { channel });
+  installCrashHandler();
+  const newContext = browser.newContext.bind(browser);
+  browser.newContext = async (...args) => {
+    const ctx = await newContext(...args);
+    ctx.on('page', (p) => {
+      openPages.add(p);
+      p.on('close', () => openPages.delete(p));
+    });
+    return ctx;
+  };
+  const newPage = browser.newPage.bind(browser);
+  browser.newPage = async (...args) => {
+    const p = await newPage(...args);
+    openPages.add(p);
+    p.on('close', () => openPages.delete(p));
+    return p;
+  };
+  return browser;
 }
 
 /** Signs in over the API and returns a tiny client (cookie + CSRF handled). */
