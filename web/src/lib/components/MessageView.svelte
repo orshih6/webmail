@@ -186,12 +186,17 @@ const imageAttachments = $derived(
 		{#if detail.html}
 			<!-- No allow-scripts and no allow-same-origin: the message cannot run code or reach
 			     this app, even if something slipped past the server-side sanitizer. -->
-			<iframe
-				title="Message body"
-				sandbox="allow-popups allow-popups-to-escape-sandbox"
-				srcdoc={detail.html}
-				referrerpolicy="no-referrer"
-			></iframe>
+			<!-- A new frame per document: when a cached rendering is replaced by a fresh one
+			     (e.g. remote images now allowed), swapping srcdoc on a live frame could leave
+			     it blank on Linux Chrome. Flag-only updates keep the same html: no reload. -->
+			{#key detail.html}
+				<iframe
+					title="Message body"
+					sandbox="allow-popups allow-popups-to-escape-sandbox"
+					srcdoc={detail.html}
+					referrerpolicy="no-referrer"
+				></iframe>
+			{/key}
 		{:else}
 			<pre class="text">{detail.text ?? ''}</pre>
 		{/if}
