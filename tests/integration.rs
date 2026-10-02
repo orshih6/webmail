@@ -947,3 +947,90 @@ async fn rich_text_and_reading_essentials() {
         1
     );
 }
+
+async fn inbox_subjects(c: &Client) -> std::collections::HashMap<u64, String> {
+    c.get("/api/messages?folder=INBOX&page_size=200").await["messages"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|m| {
+            (
+                m["uid"].as_u64().unwrap(),
+                m["subject"].as_str().unwrap().to_owned(),
+            )
+        })
+        .collect()
+}
+
+#[tokio::test]
+async fn message_cache_keeps_flags_fresh_and_users_apart() {
+    if std::env::var("WEBMAIL_IT").as_deref() != Ok("1") {
+        eprintln!("skipped: set WEBMAIL_IT=1 with the dev stack running");
+        return;
+    }
+    let config = Config::from_env().unwrap();
+    let pool = db::connect(&config.database_url).await.unwrap();
+    let app = app(AppState::new(config, pool));
+    let tag: u32 = rand::random();
+    let alice = Client::login(&app, "alice@example.test", "alicepass")
+        .await
+        .unwrap();
+    let bob = Client::login(&app, "bob@example.test", "bobpass")
+        .await
+        .unwrap();
+
+    let subject = format!("cache me {tag}");
+    alice
+        .post(
+            "/api/send",
+            compose("bob@example.test", &subject, "body to cache"),
+        )
+        .await;
+    let uid = bob.wait_for("INBOX", &subject).await["uid"]
+        .as_u64()
+        .unwrap();
+    let url = format!("/api/message?folder=INBOX&uid={uid}");
+
+    // Miss, then a hit: same content, but flags always current.
+    let first = bob.get(&url).await;
+    assert_eq!(first["flags"]["flagged"], false);
+    bob.post(
+        "/api/messages/flag",
+        json!({"folder": "INBOX", "uids": [uid], "flag": "flagged", "value": true}),
+    )
+    .await;
+    let second = bob.get(&url).await;
+    assert_eq!(
+        second["flags"]["flagged"], true,
+        "flags are never served from the cache"
+    );
+    assert_eq!(second["text"], first["text"]);
+    assert_eq!(second["subject"], subject);
+
+    // Same folder + UID in another account is a different message: never shared.
+    let (a, b) = (inbox_subjects(&alice).await, inbox_subjects(&bob).await);
+    let shared: Vec<u64> = a
+        .keys()
+        .filter(|u| b.contains_key(u))
+        .copied()
+        .take(5)
+        .collect();
+    assert!(
+        !shared.is_empty(),
+        "test needs a UID present in both inboxes"
+    );
+    for u in shared {
+        let url = format!("/api/message?folder=INBOX&uid={u}");
+        bob.get(&url).await; // warm bob's entry first
+        assert_eq!(
+            alice.get(&url).await["subject"],
+            a[&u],
+            "alice sees her own message"
+        );
+        assert_eq!(
+            bob.get(&url).await["subject"],
+            b[&u],
+            "bob sees his own message"
+        );
+    }
+}

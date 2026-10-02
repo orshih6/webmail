@@ -66,6 +66,7 @@ pub async fn logout(
     session::destroy(&st.db, &auth).await?;
     st.live.stop(&auth.ukey);
     st.pool.remove(&auth.ukey).await;
+    st.messages.forget_user(&auth.ukey);
     Ok(jar.add(session::removal_cookie()))
 }
 

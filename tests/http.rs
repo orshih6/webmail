@@ -20,6 +20,7 @@ fn test_app() -> axum::Router {
         tls_accept_invalid_certs: false,
         cookie_secure: true,
         mail_timeout: std::time::Duration::from_secs(30),
+        message_cache_bytes: 1 << 20,
     };
     app(AppState::new(config, db))
 }

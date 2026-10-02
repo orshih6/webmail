@@ -36,7 +36,8 @@ It has no user database of its own — people sign in with their mail account.
   signatures, address book with autocomplete.
 - **Folders** — create, nest, rename, delete, mark all read; Unicode names.
 - **Reading** — view source, download `.eml`, print, image attachment previews.
-- **Built for real use** — fast on 20,000-message folders (~12 ms per page), a calm
+- **Built for real use** — fast on 20,000-message folders (~12 ms per page), opened
+  messages cached and the next one preloaded so `j`/`k` feel instant, a calm
   "reconnecting" banner when the mail server is slow or down, sign back in over the page
   when a session expires without losing what you were writing.
 - **Accessible** — keyboard-first (`j`/`k`, `r`, `#`, `/`… see Settings → About), screen
@@ -97,6 +98,7 @@ All configuration is environment variables.
 | `APP_NAME` | `Webmail` | name shown in the UI, page titles, installed app and `User-Agent` |
 | `SOURCE_URL` | this repository | link to the source of the version you run (AGPL §13 — point it at your fork if you modify it) |
 | `MAIL_TIMEOUT_SECS` | `30` | how long a request may wait on the mail server (sending gets 4×) |
+| `MESSAGE_CACHE_MB` | `64` | memory for parsed, sanitized messages (per user, 15 min, flags always fetched fresh); `0` disables |
 | `LISTEN_ADDR` | `0.0.0.0:8080` | |
 | `COOKIE_SECURE` | `1` | `0` only for local http testing |
 | `TLS_ACCEPT_INVALID_CERTS` | `0` | `1` only for a dev server with a self-signed certificate |

@@ -1,5 +1,6 @@
 pub mod api;
 pub mod assets;
+pub mod cache;
 pub mod compose;
 pub mod config;
 pub mod db;
@@ -34,6 +35,7 @@ pub struct AppState {
     pub pool: Arc<imap::Pool>,
     pub live: Arc<imap::idle::Live>,
     pub limiter: Arc<ratelimit::LoginLimiter>,
+    pub messages: Arc<cache::MessageCache>,
 }
 
 impl AppState {
@@ -43,6 +45,10 @@ impl AppState {
             pool: Arc::new(imap::Pool::new(config.clone())),
             live: Arc::default(),
             limiter: Arc::default(),
+            messages: Arc::new(cache::MessageCache::new(
+                config.message_cache_bytes,
+                Duration::from_secs(15 * 60),
+            )),
             config,
             db,
         }
@@ -57,6 +63,7 @@ impl AppState {
                 tick.tick().await;
                 st.pool.reap().await;
                 st.limiter.sweep();
+                st.messages.sweep();
                 if let Err(e) = session::sweep(&st.db).await {
                     tracing::warn!(error = %e, "session sweep failed");
                 }

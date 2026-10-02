@@ -8,7 +8,7 @@ cd "$(dirname "$0")"
 python3 ../dev/seed.py
 # resilience freezes the mail container, so it runs last: nothing after it inherits a
 # just-thawed Postfix.
-for s in core settings fundamentals session undo search conversation a11y resilience; do
+for s in core settings fundamentals session undo search conversation caching a11y resilience; do
   echo "── $s"
   node "$s.mjs"
 done

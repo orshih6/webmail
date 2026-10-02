@@ -67,6 +67,10 @@ result — CI fails if it is stale. Never edit those files by hand.
   HIGHESTMODSEQ + EXISTS from `SELECT (CONDSTORE)`. Any change to the folder (arrival,
   expunge, flag) moves HIGHESTMODSEQ, so a hit is never stale; servers without CONDSTORE
   are simply not cached. Don't add a cache keyed on anything weaker.
+- **Opened messages are cached** (`src/cache.rs`, server; `MessageView`, per tab) keyed on
+  user + folder + UIDVALIDITY + UID (+ remote-images rendering): content can't change under
+  that key. **Flags are never served from a cache** — always fetched fresh. Sign-out drops
+  the user's entries on both sides. Prefetching must never mark anything read.
 - **From is always the login address.** Identities change only the display name, Reply-To
   and signature. Many mail servers don't enforce sender ownership, so a user-chosen From
   address would let anyone send as anyone.

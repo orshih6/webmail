@@ -86,7 +86,7 @@ pub struct Attachment {
     pub size: u32,
 }
 
-#[derive(Serialize, TS, Debug)]
+#[derive(Serialize, TS, Debug, Clone)]
 #[ts(export)]
 pub struct MessageDetail {
     pub folder: String,

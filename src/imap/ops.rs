@@ -440,6 +440,20 @@ pub fn thread_criteria(root: &str, known: &[String]) -> AppResult<String> {
     Ok(out)
 }
 
+/// Just the flags of one message (cheap; used when its content comes from the cache).
+pub async fn flags(s: &mut Session, uid: u32) -> AppResult<Flags> {
+    let fetches: Vec<_> = s
+        .uid_fetch(uid.to_string(), "(UID FLAGS)")
+        .await?
+        .try_collect()
+        .await?;
+    fetches
+        .iter()
+        .find(|f| f.uid == Some(uid))
+        .map(flags_of)
+        .ok_or(AppError::NotFound)
+}
+
 /// The full RFC 822 message. `peek = false` marks it read, as opening a message should.
 pub async fn raw(s: &mut Session, uid: u32, peek: bool) -> AppResult<(Vec<u8>, Flags)> {
     let query = if peek {

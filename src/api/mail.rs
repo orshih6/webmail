@@ -218,28 +218,65 @@ pub async fn message(
     auth: Auth,
     Query(q): Query<MessageQuery>,
 ) -> AppResult<Json<MessageDetail>> {
+    use crate::cache::Key;
     let mut c = st.pool.get(&auth).await?;
-    ops::select(c.s(), &q.folder).await?;
-    // Never marks it read: the reader does that explicitly once the message is actually on
-    // screen (see MessageView). An implicit \Seen here raced "mark unread" pressed while
-    // the message was still loading, and silently undid it.
+    let mb = ops::select(c.s(), &q.folder).await?;
+    let key = |images: bool| {
+        mb.uid_validity.map(|validity| Key {
+            user: auth.ukey.clone(),
+            folder: q.folder.clone(),
+            validity,
+            uid: q.uid,
+            images,
+        })
+    };
+    let cached = |images: bool| key(images).and_then(|k| st.messages.get(&k));
+
+    // Remote content: explicit request, else the preference. "From contacts" needs the
+    // sender, which either rendering in the cache already knows.
+    let pref = settings::prefs(&st.db, &auth.email).await?.remote_images;
+    let explicit = q.images.as_deref() == Some("1");
+    let known = cached(false).or_else(|| cached(true));
+    let allow = match (explicit, pref, &known) {
+        (true, _, _) | (_, RemoteImages::Always, _) => Some(true),
+        (_, RemoteImages::Never, _) => Some(false),
+        (_, RemoteImages::Contacts, Some(d)) => match &d.from {
+            Some(a) => Some(settings::is_contact(&st.db, &auth.email, &a.email).await?),
+            None => Some(false),
+        },
+        (_, RemoteImages::Contacts, None) => None, // decided from the fetched message below
+    };
+
+    // Hit: content from memory, flags fresh from the server (they change; content can't).
+    if let Some(hit) = allow.and_then(cached) {
+        let flags = ops::flags(c.s(), q.uid).await?;
+        c.release();
+        let mut d = (*hit).clone();
+        d.flags = flags;
+        return Ok(Json(d));
+    }
+
+    // Miss. Never marks it read: the reader does that explicitly once the message is on
+    // screen (see MessageView) — an implicit \Seen here raced "mark unread" pressed while
+    // the message was loading, and silently undid it.
     let (raw, flags) = ops::raw(c.s(), q.uid, true).await?;
     c.release();
-    let allow = q.images.as_deref() == Some("1")
-        || match settings::prefs(&st.db, &auth.email).await?.remote_images {
-            RemoteImages::Always => true,
-            RemoteImages::Never => false,
-            RemoteImages::Contacts => match mime::sender(&raw) {
-                Some(from) => settings::is_contact(&st.db, &auth.email, &from).await?,
-                None => false,
-            },
-        };
+    let allow = match allow {
+        Some(a) => a,
+        None => match mime::sender(&raw) {
+            Some(from) => settings::is_contact(&st.db, &auth.email, &from).await?,
+            None => false,
+        },
+    };
     // Parsing and sanitising big messages is CPU work; keep it off the async workers.
     let folder = q.folder.clone();
     let detail =
         tokio::task::spawn_blocking(move || mime::detail(&folder, q.uid, &raw, flags, allow))
             .await
             .map_err(|e| anyhow::anyhow!(e))?;
+    if let Some(k) = key(allow) {
+        st.messages.put(k, std::sync::Arc::new(detail.clone()));
+    }
     Ok(Json(detail))
 }
 

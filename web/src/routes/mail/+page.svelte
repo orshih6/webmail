@@ -13,7 +13,7 @@ import type { SearchResults } from '$lib/api/types/SearchResults';
 import Conversation from '$lib/components/Conversation.svelte';
 import Icon from '$lib/components/Icon.svelte';
 import Menu from '$lib/components/Menu.svelte';
-import MessageView from '$lib/components/MessageView.svelte';
+import MessageView, { prefetchMessage } from '$lib/components/MessageView.svelte';
 import { display, shortDate } from '$lib/format';
 import { app, fail, pageTitle, specialPath, toast, undoToast } from '$lib/state.svelte';
 
@@ -288,6 +288,16 @@ function moveTo(e: Event) {
 
 const openRow = $derived(list?.messages.find((m) => m.uid === openUid));
 const lastPage = $derived(list ? Math.max(1, Math.ceil(list.total / list.page_size)) : 1);
+
+// With a message open, quietly load the next one so j / "next" is instant.
+$effect(() => {
+	if (!openUid || allMode || inDrafts) return;
+	const next = neighbour(1);
+	if (next == null) return;
+	const f = folder;
+	const t = setTimeout(() => prefetchMessage(f, next), 250);
+	return () => clearTimeout(t);
+});
 
 // ---- Keyboard: the list is one Tab stop; arrows move within it ----------------------------
 let focusedUid = $state<number | null>(null);

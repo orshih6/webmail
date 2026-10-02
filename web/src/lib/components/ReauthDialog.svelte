@@ -2,6 +2,7 @@
 import { api } from '$lib/api/client';
 import type { SessionInfo } from '$lib/api/types/SessionInfo';
 import { app, clearComposeBackups } from '$lib/state.svelte';
+import { forgetMessages } from './MessageView.svelte';
 
 let password = $state('');
 let busy = $state(false);
@@ -35,6 +36,7 @@ async function submit(e: SubmitEvent) {
 
 function leave() {
 	clearComposeBackups();
+	forgetMessages();
 	app.reauth?.resolve(false);
 }
 </script>

@@ -1,5 +1,40 @@
+<script lang="ts" module>
+import { api as moduleApi, qs as moduleQs } from '$lib/api/client';
+import type { MessageDetail as Detail } from '$lib/api/types/MessageDetail';
+
+/** Recently opened (or prefetched) messages for this tab: shown instantly, then
+ *  re-checked with the server. Content can't change under a UID; flags can, which the
+ *  re-check brings in. Cleared on sign-out. */
+const cache = new Map<string, Detail>();
+const CACHE_MAX = 50;
+const keyOf = (folder: string, uid: number, images: boolean) =>
+	`${folder}\n${uid}\n${images ? 1 : 0}`;
+
+function remember(k: string, d: Detail) {
+	cache.delete(k);
+	cache.set(k, d);
+	if (cache.size > CACHE_MAX) cache.delete(cache.keys().next().value as string);
+}
+
+export function forgetMessages() {
+	cache.clear();
+}
+
+const inflight = new Set<string>();
+/** Warms the cache for a message the user is likely to open next. Never marks it read. */
+export function prefetchMessage(folder: string, uid: number) {
+	const k = keyOf(folder, uid, false);
+	if (cache.has(k) || inflight.has(k)) return;
+	inflight.add(k);
+	moduleApi<Detail>('GET', `/message?${moduleQs({ folder, uid })}`)
+		.then((d) => remember(k, d))
+		.catch(() => {}) // a prefetch never bothers the user
+		.finally(() => inflight.delete(k));
+}
+</script>
+
 <script lang="ts">
-import { api, qs } from '$lib/api/client';
+import { ApiError, api, qs } from '$lib/api/client';
 import type { MessageDetail } from '$lib/api/types/MessageDetail';
 import { display, fullList, longDate, size } from '$lib/format';
 import { fail, toast } from '$lib/state.svelte';
@@ -17,29 +52,47 @@ let images = $state(false);
 
 $effect(() => {
 	const key = { folder, uid, images };
+	const k = keyOf(key.folder, key.uid, key.images);
 	let cancelled = false;
-	loading = true;
+
+	const show = (d: MessageDetail) => {
+		if (cancelled) return;
+		// Mark read only now that it is on screen — and not at all if the reader has
+		// already gone (e.g. "mark unread" pressed while this was loading).
+		if (!d.flags.seen) {
+			d.flags.seen = true;
+			api('POST', '/messages/flag', {
+				folder: key.folder,
+				uids: [key.uid],
+				flag: 'seen',
+				value: true
+			}).catch(() => {});
+		}
+		detail = d;
+		onloaded?.(d);
+	};
+
+	const hit = cache.get(k);
+	if (hit) show(hit);
+	loading = !hit;
 	api<MessageDetail>(
 		'GET',
 		`/message?${qs({ folder: key.folder, uid: key.uid, images: key.images ? 1 : undefined })}`
 	)
 		.then((d) => {
-			if (cancelled) return;
-			// Mark read only now that it is on screen — and not at all if the reader has
-			// already gone (e.g. "mark unread" pressed while this was loading).
-			if (!d.flags.seen) {
-				d.flags.seen = true;
-				api('POST', '/messages/flag', {
-					folder: key.folder,
-					uids: [key.uid],
-					flag: 'seen',
-					value: true
-				}).catch(() => {});
-			}
-			detail = d;
-			onloaded?.(d);
+			if (hit) d.flags.seen = d.flags.seen || hit.flags.seen; // our own mark may be in flight
+			remember(k, d);
+			// Re-render only if something actually changed (flags, typically).
+			if (!hit || JSON.stringify(hit) !== JSON.stringify(d)) show(d);
 		})
-		.catch((e) => !cancelled && fail(e))
+		.catch((e) => {
+			// Gone on the server (deleted elsewhere): drop the cached copy, don't keep showing it.
+			const gone = e instanceof ApiError && e.status === 404;
+			if (gone) cache.delete(k);
+			if (cancelled) return;
+			if (gone) detail = null;
+			if (!hit || gone) fail(e);
+		})
 		.finally(() => !cancelled && (loading = false));
 	return () => {
 		cancelled = true;

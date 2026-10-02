@@ -8,6 +8,7 @@ import { folderUrl } from '$lib/format';
 import { app, brand, clearComposeBackups, fail, toast, undoToast } from '$lib/state.svelte';
 import Icon, { type IconName } from './Icon.svelte';
 import Menu, { type MenuItem } from './Menu.svelte';
+import { forgetMessages } from './MessageView.svelte';
 
 let { onrefresh }: { onrefresh: () => void } = $props();
 
@@ -173,6 +174,7 @@ async function drop(e: DragEvent, f: Folder) {
 
 async function logout() {
 	clearComposeBackups();
+	forgetMessages();
 	try {
 		await api('POST', '/logout', {});
 	} catch {}

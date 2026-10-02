@@ -18,7 +18,9 @@ const cases = [
   ['search, repeated (cached)', () => api('GET', q({ q: 'invoice' }))],
   // A different term every time: what a user waits for on a new search.
   ['search, new term (uncached)', () => api('GET', q({ q: `#${Math.floor(Math.random() * 20000)}` }))],
-  ['open a message', () => api('GET', `/api/message?folder=INBOX&uid=${uid}`)]
+  ['open a message again (cached)', () => api('GET', `/api/message?folder=INBOX&uid=${uid}`)],
+  // A different message every time: the first open of anything.
+  ['open a new message (uncached)', () => api('GET', `/api/message?folder=INBOX&uid=${first.messages[0].uid - 1 - Math.floor(Math.random() * 15000)}`)]
 ];
 const rows = [];
 for (const [name, fn] of cases) {

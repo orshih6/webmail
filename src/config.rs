@@ -23,6 +23,8 @@ pub struct Config {
     /// How long an API call may wait on the mail server before giving up (MAIL_TIMEOUT_SECS).
     /// Sending and attachment transfers get four times this.
     pub mail_timeout: Duration,
+    /// Memory for parsed, sanitized messages (MESSAGE_CACHE_MB; 0 disables).
+    pub message_cache_bytes: usize,
 }
 
 impl Config {
@@ -41,6 +43,11 @@ impl Config {
             smtp_port: var_or("SMTP_PORT", "465").parse().context("SMTP_PORT")?,
             tls_accept_invalid_certs: var_or("TLS_ACCEPT_INVALID_CERTS", "0") == "1",
             cookie_secure: var_or("COOKIE_SECURE", "1") != "0",
+            message_cache_bytes: var_or("MESSAGE_CACHE_MB", "64")
+                .parse::<usize>()
+                .context("MESSAGE_CACHE_MB")?
+                * 1024
+                * 1024,
             mail_timeout: Duration::from_secs(
                 var_or("MAIL_TIMEOUT_SECS", "30")
                     .parse()
