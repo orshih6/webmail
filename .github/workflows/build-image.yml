@@ -1,8 +1,12 @@
 name: Build and push image
 
+# Every push to main builds sha-<commit> and deploys it (the `deploy` job). Version tags
+# (<Cargo version> + latest) are published only for a v* tag or a manual run, so main never
+# overwrites a released version.
 on:
   workflow_dispatch: {}
   push:
+    branches: [main]
     tags: ["v*"]
 
 permissions:
@@ -95,14 +99,43 @@ jobs:
 
       - name: Publish the multi-arch image under its tags
         working-directory: ${{ runner.temp }}/digests
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+          RELEASE: ${{ github.event_name != 'push' || github.ref_type == 'tag' }}
         run: |
-          docker buildx imagetools create \
-            -t "$IMAGE:${{ steps.version.outputs.version }}" \
-            -t "$IMAGE:latest" \
-            $(printf "$IMAGE@sha256:%s " *)
+          tags=(-t "$IMAGE:sha-$GITHUB_SHA")
+          if [ "$RELEASE" = true ]; then tags+=(-t "$IMAGE:$VERSION" -t "$IMAGE:latest"); fi
+          docker buildx imagetools create "${tags[@]}" $(printf "$IMAGE@sha256:%s " *)
 
       - name: Check both architectures are in it
         run: |
-          docker buildx imagetools inspect "$IMAGE:${{ steps.version.outputs.version }}" | tee manifest.txt
+          docker buildx imagetools inspect "$IMAGE:sha-$GITHUB_SHA" | tee manifest.txt
           grep -q "linux/amd64" manifest.txt
           grep -q "linux/arm64" manifest.txt
+
+  # Deploy = point orshih6/manifest's apps/webmail at this build's sha- tag; Argo CD notices
+  # the commit and rolls deploy/webmail in dms-admin. Only for main, only after the image exists.
+  deploy:
+    needs: merge
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    concurrency:
+      group: deploy-webmail
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          repository: orshih6/manifest
+          ssh-key: ${{ secrets.MANIFEST_DEPLOY_KEY }} # write deploy key on orshih6/manifest
+
+      - name: Point apps/webmail at this build
+        env:
+          SUBJECT: ${{ github.event.head_commit.message }} # via env, never spliced into the script
+        run: |
+          cd apps/webmail
+          kustomize edit set image "ghcr.io/orshih6/webmail=ghcr.io/orshih6/webmail:sha-${GITHUB_SHA}"
+          git diff --quiet && { echo "already on sha-${GITHUB_SHA}"; exit 0; }
+          git config user.name "webmail-ci"
+          git config user.email "actions@github.com"
+          git commit -am "webmail: sha-${GITHUB_SHA::7} ($(printf '%s' "$SUBJECT" | head -1 | cut -c1-60))"
+          git push
